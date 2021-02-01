@@ -1,0 +1,2303 @@
+﻿
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Joel Whittle - 30185414</title>
+    <h1>Vertical Scrolling SHMUP - Advanced Games Programming - Assignment 1</h1>
+    <hr>
+    <p>This is a demonstration of a game built for a non - PC platform..</p>
+    <p>
+        <h3>Features include:</h3>
+
+        <ul>
+            <li>A simple game loop, considering delta time</li>
+            <li>Collection of player input</li>
+            <li>Player character movement</li>
+            <li>Toggleable multiplayer</li>
+            <li>Simple animated characters</li>
+            <li>Simple AI</li>
+            <li>Background music and sounds</li>
+            <li>Scrolling parralax effect star background</li>
+            <li>Collectables, including a health pack and a special fire mode</li>
+            <li>End game condition</li>
+
+
+        </ul>
+
+    </p>
+        <p>
+        <h3>Additional features include:</h3>
+
+        <ul>
+            <li>Screen shake</li>
+            <li>Particle effects</li>
+            <li>AI Helper</li>
+            <li>Mini Boss fight</li>
+            <li>AI Chatter</li>
+         
+
+
+        </ul>
+
+    </p>
+
+    <p>
+        <h3>Controls</h3>
+        <ul>
+            <li>
+                Player 1 - WASD for movement and SPACE to shoot
+            </li>
+
+            <li> Player 2 - UP LEFT RIGHT DOWN for movement and 0(ins) to shoot</li>
+          </ul>
+    </p>
+    <p>
+        <h3>Disclaimer</h3>
+    
+    I do not claim ownership of any assets associated with this project, inlucding character art
+     and audio.
+
+     <ul>
+
+<li>Ship designs are from Tyrian</li>
+<li>FlashHeart and Bob belong to Blackadder Goes Forth</li>
+<li>Chewbacca belongs to Star Wars</li>
+<li>Wash belongs to Firefly</li>
+<li>The background music is taken from Freebird by Lynyrd Skynyrd</li>
+
+     </ul>
+       <p>
+    All assets were used for educational purposes.
+</p>
+</p>
+    <!-- Basic styling and centering the canvas -->
+    <style>
+
+        canvas {
+            display: block;
+            position: absolute;
+            margin: auto;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <script>
+
+
+
+       class Player 
+            {
+  constructor(context, playerNo) {
+                this.x = null; //null, becasue we want to move it later!
+                this.y = null;
+                this.width= 30;
+                this.height= 50;
+               this.shootCoolDownTimer= 0.15;
+                this.curShootCoolDownTimer= 0;
+                this.health= 5;
+
+                this.curImage= new Image(); //images for rendering
+                this.forwardImage= new Image();
+                this.leftImage= new Image();
+                this.rightImage= new Image();
+                this.maxHealth= 5; //max health
+                this.specialFireTimer= 10; //length special fire mode lasts for
+                this.curSpecialFireTimer= 0; //cur time left on special fire mode .. if this > 0.. special fire is activated
+                this.alive = true;  //wether player is alive
+                this.playerNo = playerNo; //player 1 or 2, so we can keep track of scores
+
+                this.maxGenerator = 10; //maximum generator level
+                this.curGenerator = 10; //current generator level
+                this.generatorRegenRate = 2; //generator regen rate * dt
+                this.maxShield= 10; //max shield level
+                this.curShield= 10; //ciurrent shoield level
+                this.shieldRegenRate= 1.5; //shield regen rate * dt
+                this.shieldRegenPowerCost= 2; //cost to the generator of regenerating the shield.
+                this.shootPowerCost= 1; //cost to the generator of shooting
+
+                this.score = 0; //players score
+                this.ai = false; //is player controlled by ai
+   // toggleMultiplayer = 77 //m
+
+
+//MOVEMENT BUTTONS
+                this.moveLeftButton = 65; 
+                this.moveRightButton = 68;
+                this.moveUpButton = 87;
+                this.moveDownButton = 83;
+                this.shootButton = 32;
+
+
+                this.dirX = 0;
+                this.dirY = 0;
+
+//RESET MOVEMENT FOR PLAYER 2
+                if(this.playerNo == 2)
+                {
+                this.moveLeftButton = 37;
+                this.moveRightButton = 39;
+                this.moveUpButton = 38;
+                this.moveDownButton = 40;
+                this.shootButton = 96;
+                }
+
+
+
+}
+                loadTextures () {
+
+                    //load textures for rendering
+                    this.forwardImage.src = 'shipforward.png';
+                    this.curImage = this.forwardImage;
+                    this.leftImage.src = 'p1shipleft.png';
+                    this.rightImage.src = 'p1shipright.png';
+                }
+
+                //Check the key press within the update function
+                update(dt, Enemies,Bullets,Collectables) {
+
+                    var tryToShoot = false; //are we trying to shoot this frame
+
+
+                 //Weights for steering behaviour purposes
+                        var colWeight = 2; //weight of how much we want to collect something
+                        var enemyWeight = 3; //how much we want to avoid an enemy
+                        var bulletWeight = 1; //how much we want to collect a button
+
+                        var idleWeight = 1; //how much we want to return to our base position
+
+                        //Check to see if were dying
+                    if (this.health <= 0) {
+                        this.health = 0;
+
+                        if(this.alive)
+                        {
+                          //shake
+                            shakeduration += .2;
+                        }
+                        this.alive = false; //flag for removal
+                    }
+
+                    //if we are alive, update generator shields and health
+                    if (this.alive) {
+
+                      //update generator  .. stop at max
+                        this.curGenerator += dt * this.generatorRegenRate;
+                        if (this.curGenerator > this.maxGenerator) {
+                            this.curGenerator = this.maxGenerator;
+                        }
+
+                        // if generator is full and we have less that full shield, regen shield
+                        if (this.curGenerator == this.maxGenerator && this.curShield < this.maxShield) {
+                            this.curShield += dt * this.shieldRegenRate;
+                            this.curGenerator -= dt * this.shieldRegenPowerCost;
+                        }
+
+                        //decrement special fire timer 
+                        this.curSpecialFireTimer -= dt;
+
+                        //AI! be remiss to not put a bit of simple steering in .. so if its not multiplayer and this is player 2
+             
+
+
+                      if(isMultiplayer == false && this.playerNo == 2)
+                        {
+                       // console.log(this.dirY);
+
+                       this.dirX =0;
+                       this.dirY = 0;
+
+                       //we want to chill by the player if theres no enemies
+                       var idleX = player1.x;
+                       if(Enemies.length > 0)
+                       {
+                        //if there are enemies, we want to head chase them a bit, even if they arent that close to us, just keeps the ai moving more
+                          idleX =     Enemies[0].posX;
+
+                       }
+                       var idleY = player1.y;
+
+
+                        var nearbyEnemies = []; //list of near by enemies
+                        var nearestEnemyDist = 99999; //for calculating who is closing
+                        var tX = 0;
+                        var tY = 0;
+
+                        // calculate direction to idle, target position - our position
+                        var toIdleX = idleX - this.x; 
+                        var toIdleY = idleY - this.y;
+
+                        //calculate distance to idle
+                          var idleDistX = Math.abs(this.x - idleX);
+                          var idleDistY = Math.abs(this.y -idleY);
+
+                          //set toIdleX and to IdleY to either -1 or 1 depending on direcion
+                           if(toIdleX > 0)
+                           {
+                            toIdleX = 1;
+                           }
+                           if(toIdleX < 0)
+                           {
+                            toIdleX = -1;
+                           }
+
+                         if(toIdleY > 0)
+                           {
+                            toIdleY = 1;
+                           }
+                           if(toIdleY < 0)
+                           {
+                            toIdleY = -1;
+                           }
+                           //if we are far enough from our idle position to care, move to idle
+if(idleDistX + idleDistY > 100)
+{
+  //calculate weights
+toIdleX *= idleWeight;
+toIdleY *= idleWeight;
+//set dir
+this.dirX += toIdleX;
+this.dirY += -toIdleY;
+}
+
+                      //go through all enemies to find out who is near
+                        for(var index = 0; index < Enemies.length; index++)
+                        {
+                          //check distance
+                            var xDist = Math.abs(this.x - Enemies[index].posX);
+                          var yDist = Math.abs(this.y - Enemies[index].posY);
+                          var tDist = xDist + yDist;
+
+                          //if we are below them and they are close to us on X axis, try and shoot
+                          if(Enemies[index].posY < this.y && xDist < 30)
+                          {
+                           
+                            tryToShoot = true;
+                          }
+                          //console.log(tDist);
+                          //if we are close to an enemy, and this is nearest enemy ..
+                          if(tDist< 200 && tDist < nearestEnemyDist)
+                          {
+                           var tX = (Enemies[index].posX - this.x)  ;
+                           //..start acting on it, set our temp dir values , similiar to above
+                           if(tX > 0)
+                           {
+                            tX = 1;
+                           }
+                           if(tX < 0)
+                           {
+                            tX = -1;
+                           }
+
+                           var tY = (Enemies[index].posX - this.y) ;
+                                if(tY > 0)
+                           {
+                            tY = 1;
+                           }
+                           if(tY < 0)
+                           {
+                            tY = -1;
+                           }
+
+                           //then multiply by weight
+                           tX *= enemyWeight;
+                           tY *= enemyWeight;
+                          
+
+                            nearestEnemyDist = tDist;
+                            //console.log("close to enemy");
+                          }
+                          //add this weight to our durrent desired directions
+                            this.dirX += -tX;
+                            this.dirY += tY;
+
+
+
+                        }
+
+
+                        nearestEnemyDist = 9999;
+
+                        //AVOID BULLETS, literally the same as enemies
+                        for(var index = 0; index < Bullets.length; index++)
+                        {
+                            var xDist = Math.abs(this.x - Bullets[index].posX);
+                          var yDist = Math.abs(this.y - Bullets[index].posY);
+                          var tDist = xDist + yDist;
+                          //console.log(tDist);
+                          if(tDist< 100 && tDist < nearestEnemyDist && Bullets[index].playerOwned == false)
+                          {
+                           var tX = (Bullets[index].posX - this.x)  ;
+
+                           if(tX > 0)
+                           {
+                            tX = 1;
+                           }
+                           if(tX < 0)
+                           {
+                            tX = -1;
+                           }
+
+                           var tY = (Bullets[index].posX - this.y) ;
+                                if(tY > 0)
+                           {
+                            tY = 1;
+                           }
+                           if(tY < 0)
+                           {
+                            tY = -1;
+                           }
+
+                           tX *= bulletWeight;
+                           tY *= bulletWeight;
+                          // console.log(tX);
+                          
+
+                            nearestEnemyDist = tDist;
+                            //console.log("close to enemy");
+                          }
+                            this.dirX += -tX;
+                            this.dirY += tY;
+
+
+
+                        }
+
+
+
+                        nearestEnemyDist = 9999;
+                        //COLLECTABLES ... the same as enemies and bullets, but reversed, we want collectables!
+
+                        for(var index = 0; index < Collectables.length; index++)
+                        {
+                            var xDist = Math.abs(this.x - Collectables[index].posX);
+                          var yDist = Math.abs(this.y - Collectables[index].posY);
+                          var tDist = xDist + yDist;
+                          //console.log(tDist);
+                          if(tDist< 800 && tDist < nearestEnemyDist)
+                          {
+                           var tX = (Collectables[index].posX - this.x)  ;
+
+                           if(tX > 0)
+                           {
+                            tX = 1;
+                           }
+                           if(tX < 0)
+                           {
+                            tX = -1;
+                           }
+
+                           var tY = (Collectables[index].posX - this.y) ;
+                                if(tY > 0)
+                           {
+                            tY = 1;
+                           }
+                           if(tY < 0)
+                           {
+                            tY = -1;
+                           }
+
+                           tX *= colWeight;
+                           tY *= colWeight;
+                           //console.log(tX);
+                          
+
+                            nearestEnemyDist = tDist;
+                            //console.log("close to enemy");
+                          }
+                            this.dirX -= -tX;
+                            this.dirY -= tY;
+
+
+
+                        }
+
+                    }
+                    //Okay so its not AI controlled, lets just take input as usual
+                    else
+                    {
+                            console.log(this.shootButton);
+
+                        this.dirY = 0;
+                        //Player Inputs
+                        if (keystate[this.moveUpButton]) { this.dirY =1}; //number is the speed of the paddle
+                        if (keystate[this.moveDownButton]) { this.dirY = -1}; //number is the speed of the paddle
+                        this.dirX = 0;
+
+                        if (keystate[this.moveLeftButton]) {
+                            this.dirX -= 1;
+
+                        }
+                        if (keystate[this.moveRightButton]) {
+                            this.dirX += 1;
+
+                        }
+  if (keystate[this.shootButton]) {
+
+                            tryToShoot = true;
+
+                        }
+
+                    }
+                        
+                    
+                        
+                    //move based on desired direction , a speed, and delta time
+                            if (this.dirY > 0) { this.y -= 300 * dt };
+
+                        if (this.dirY < 0) { this.y += 300 * dt };
+
+                            if (this.dirX > 0) { this.x += 300 * dt };
+
+                        if (this.dirX < 0) { this.x -= 300 * dt };
+
+
+
+                        //if were trying to shoot, and we can shoot!
+                        if (tryToShoot && this.curShootCoolDownTimer > this.shootCoolDownTimer && this.curGenerator > this.shootPowerCost) {
+
+                            if (this.curSpecialFireTimer > 0) {
+                              //if its a special fire shot, special fire it ! (basically, two, coloured green)
+
+                                Shoot(context, true, 0, -350, this.x - 10, this.y);
+                                Bullets[Bullets.length - 1].color = "#00FF00";
+                                Bullets[Bullets.length - 1].owner = 1;
+                                Shoot(context, true, 0, -350, this.x + 10, this.y);
+                                Bullets[Bullets.length - 1].color = "#00FF00";
+                                Bullets[Bullets.length - 1].owner = this.playerNo;
+
+                            }
+                            else {
+                              //normal fire shot
+                                Shoot(context, true, 0, -350, this.x, this.y);
+                                Bullets[Bullets.length - 1].owner = this.playerNo;
+
+                            }
+
+                            this.curShootCoolDownTimer = 0;
+                            this.curGenerator -= this.shootPowerCost;
+
+                        }
+                     
+
+//set our display image based on direction of travel
+
+                        this.curImage = this.forwardImage;
+                        if (this.dirX < 0) {
+                            this.curImage = this.leftImage;
+
+                        }
+                        if (this.dirX > 0) {
+                            this.curImage = this.rightImage;
+
+                        }
+
+
+                        // keep the ship inside of the canvas
+                        this.y = Math.max(Math.min(this.y, HEIGHT - this.height), 0);
+                        this.x = Math.max(Math.min(this.x, WIDTH - this.width), 0);
+
+
+
+                        this.curShootCoolDownTimer += dt;
+                        //ENEMY COLLISIONS
+
+                        for (var index = 0; index < Enemies.length; ++index) {
+
+                            if (AABBCollission(this.x, this.y, this.width, this.height, Enemies[index].posX, Enemies[index].posY, Enemies[index].width, Enemies[index].height)) {
+                              //HIT
+                                this.score++; //increment score .. i guess?
+                                Enemies[index].flagForDelete = true; // flag enemy for deletion
+
+                                if(Enemies[index].isBoss == true)
+                                {
+                                  bossFightInProgress = false; //cancel the boss fight if nessecary
+                                }
+                                myMusic = new sound("crash.wav", false); //play sound
+                                myMusic.play();
+                               shakeduration += .2; //add shake
+
+
+                                //trigger an explosion of particles
+                                for(var n = 0; n < 100; n++)
+                                {
+                                   var particle = new Particle(context,Enemies[index].posX,Enemies[index].posY);
+                                    Particles.push(particle);
+                                }
+
+                                //decrement from shield  and health
+                                if (this.curShield > 5) {
+                                    this.curShield -= 5;
+                                }
+                                else {
+                                    var diff = 5 - this.curShield;
+                                    this.health -= diff;
+                                    this.curShield = 0;
+
+                                    if(this.health < 0)
+                                    {
+                                        this.health = 0;
+                                    }
+                                }
+
+                            }
+
+                        }
+
+                        //BULLET COLLISION ... same as enemy collision .. except no particles
+
+                        for (index = 0; index < Bullets.length; ++index) {
+                            if (AABBCollission(Bullets[index].posX, Bullets[index].posY, Bullets[index].width, Bullets[index].height, this.x, this.y, this.width, this.height) && Bullets[index].playerOwned == false) {
+
+                                Bullets[index].flagForDelete = true;
+                                myMusic = new sound("playerhit.mp3", false);
+                                myMusic.play();
+                                shakeduration += .1;
+
+                                if (this.curShield > Bullets[index].damage) {
+                                    this.curShield -= Bullets[index].damage;
+                                }
+                                else {
+                                    var diff = Bullets[index].damage - this.curShield;
+                                    this.health -= diff;
+                                    this.curShield = 0;
+
+                                    if(this.health < 0)
+                                    {
+                                        this.health = 0;
+                                    }
+                                }
+
+
+                            }
+
+                        }
+
+
+
+                        //COLLECTABLE COLLISION
+
+                        for (index = 0; index < Collectables.length; ++index) {
+
+                            if (AABBCollission(this.x, this.y, this.width, this.height, Collectables[index].posX, Collectables[index].posY, Collectables[index].width, Collectables[index].height)) {
+
+                              console.log("player collided with collectable");
+                                this.score++; //increment score
+                                Collectables[index].flagForDelete = true; //delete colelctalble
+
+                                //depending on collectable type, apply effect
+                                if (Collectables[index].myType == 1) {
+                                    this.health = this.maxHealth;
+                                    console.log("health coll");
+
+                                }
+                                else {
+                                  //special fire colelctable
+                                    this.curSpecialFireTimer = this.specialFireTimer;
+                                    console.log("fire coll");
+                                    console.log(this.curSpecialFireTimer);
+                                }
+                                //play sound effect
+                                myMusic = new sound("crash.wav", false);
+                                myMusic.play();
+
+
+
+                                  //if this is player 2 ... and we can, play some AI chatter by chance!
+                                if(this.playerNo ==2)
+                                {
+
+                                  if(chatterBox.curLife < 0)
+                                  {
+                                                      var r = Math.floor(Math.random() * Math.floor(2))
+                                                      if(r ==1)
+                                                      {
+                                                        chatterBox.curLife = chatterBox.maxLife;
+                                                        chatterBox.portrait = chatterBox.wash;
+                                                        chatterBox.text = "Shiny!";
+                                                      }
+
+                                  }
+                                }
+
+                            }
+
+                        }
+
+
+                    }
+                }
+
+                //here we use the draw function to create the ship
+                draw() {
+                    if (this.alive) {
+                        //context.fillStyle = "#9932CC";
+
+                        //context.fillRect(this.x, this.y, this.width, this.height);
+
+                        context.drawImage(this.curImage, this.x + shakex - (this.width / 2), this.y + shakey - (this.width / 2));
+                    }
+
+
+
+                }
+            }
+
+
+
+
+
+        //collectable class
+        class Collectable {
+            constructor(context, posX, posY) {
+                this.context = context;
+                this.velX = 0
+                this.velY = 200; //drifts down the screen
+                this.posX = posX;
+                this.posY = posY;
+
+                this.size = 10
+                this.width = this.size;
+                this.height = this.size;
+                this.flagForDelete = false; //flag for delete manages wether or not thisitem should be deleted in the update loop
+
+                this.color = "#0000FF";
+                this.myType = 1; //1 for health pack .. 2 for special fire mode .. an enumeration would be more suitable
+                if (getRandomArbitrary(0, 100) < 50) //50 percent chance of becoming type 2 and changing color to green
+                {
+                    this.myType = 2;
+                    this.color = "#00FF00";
+
+                }
+
+            }
+            draw() {
+                context.fillStyle = this.color;
+
+                context.globalAlpha = 1;
+                context.beginPath();// draw a circle
+                context.arc(this.posX + shakex - (this.width / 2), this.posY + shakey - (this.height / 2), this.size, 0, 2 * Math.PI, false); //positioning is offset by half width and half height, for personal reasons really. Easier to conceptualise when the x,y is in the centre of the object and not in the corner.
+
+                context.fill();
+
+            }
+
+            update() {
+                this.posX += this.velX * dt; //update position by velocity and delta time
+                this.posY = this.posY + (this.velY * dt);
+
+                if (this.posX > WIDTH || this.posX < 0 || this.posY > HEIGHT || this.posY < 0) {
+                    this.flagForDelete = true; //delete if of screen
+                }
+            }
+        }
+
+
+
+
+        //Star class .. Stars are instantiate and just scroll down the screen
+        class Star {
+            constructor(context) {
+                this.context = context;
+                this.velX = 0
+                this.velY = 0;
+                this.posX = getRandomArbitrary(0, WIDTH); //start at a random x
+                this.posY = 0;
+
+                this.size = getRandomArbitrary(5, 20); //pick a random size
+                this.velY = scale(this.size, 5, 20, 60, 300); //map velocity to size
+                this.width = this.size;
+                this.height = this.size;
+                this.flagForDelete = false;
+
+                this.color = "#FFFFFF";
+
+
+                //console.log(this.ColorOffsetApply);
+
+                //    console.log(this.color);
+            }
+            draw() {
+                context.fillStyle = this.color;
+
+                context.globalAlpha = scale(this.size, 5, 20, 0.1, 1); //map alpha to size
+                context.beginPath();
+                context.arc(this.posX  + shakex - (this.width / 2), this.posY  + shakey- (this.height / 2), this.size, 0, 2 * Math.PI, false);
+
+                context.fill();
+                context.globalAlpha = 1; //reset alpha
+
+                context.fillStyle = "#FFFFFF";
+            }
+
+            update() //update position by velocity and delta time
+            {
+                this.posX += this.velX * dt;
+                this.posY = this.posY + (this.velY * dt);
+
+                if (this.posX > WIDTH || this.posX < 0 || this.posY > HEIGHT || this.posY < 0) {
+                    this.flagForDelete = true; //remove if of screen
+                }
+            }
+        }
+
+
+
+
+
+
+
+        //Star class .. Stars are instantiate and just scroll down the screen
+        class Particle {
+            constructor(context, posX,posY) {
+                this.context = context;
+             
+                this.posX = posX; //start at a random x
+                this.posY = posY;
+                this.maxLife = 1;
+                this.curLife = this.maxLife;
+                this.size = getRandomArbitrary(1, 10); //pick a random size
+  
+
+                this.width = this.size;
+                this.height = this.size;
+                this.flagForDelete = false;
+
+                this.color = "#FF0000";
+
+                var pt_angle = Math.random() * 2 * Math.PI; // pick an angle
+                var pt_radius_sq = Math.random() * 60 * 60;
+               this.velX = Math.sqrt(pt_radius_sq) * Math.cos(pt_angle);
+                this.velY = Math.sqrt(pt_radius_sq) * Math.sin(pt_angle);
+
+                //cjhange color based on chance
+                  if (getRandomArbitrary(0, 100) > 60) 
+                {
+                    this.myType = 2;
+                    this.color = "#FFFF00"; 
+
+                }
+
+                  if (getRandomArbitrary(0, 100) > 80) 
+                {
+                    this.myType = 2;
+                    this.color = "#FF9900";
+
+                }
+
+                //console.log(this.ColorOffsetApply);
+
+                //    console.log(this.color);
+            }
+            draw() {
+                context.fillStyle = this.color;
+
+                context.globalAlpha = scale(this.size, 5, 20, 0.1, 1); //map alpha to size
+                context.beginPath();
+                context.arc(this.posX + shakex - (this.width / 2), this.posY + shakey - (this.height / 2), this.size, 0, 2 * Math.PI, false);
+
+                context.fill();
+                context.globalAlpha = 1; //reset alpha
+
+                context.fillStyle = "#FFFFFF";
+            }
+
+            update() //update position by velocity and delta time
+            {
+                this.posX += this.velX * dt;
+                this.posY = this.posY + (this.velY * dt);
+
+                if (this.posX > WIDTH || this.posX < 0 || this.posY > HEIGHT || this.posY < 0) {
+                    this.flagForDelete = true; //remove if of screen
+                }
+
+
+                this.curLife -= dt;
+                if(this.curLife < 0)
+                {
+                    this.flagForDelete = true;
+                }
+            }
+        }
+
+
+
+
+
+        //AI CHATTER BOX
+        class ChatterBox {
+            constructor(context) {
+                this.context = context;
+             //images for chatter box
+
+this.bob = new Image();
+this.bob.src = "bob.png";
+this.chewy = new Image();
+this.chewy.src = "chewy.png";
+this.flashheart = new Image();
+this.flashheart.src = "flash.png";
+
+this.wash = new Image();
+this.wash.src = "wash.png";
+//positioning
+                this.posX = 150; //start at a random x
+                this.posY = 650;
+                this.maxLife = 3; //how long it displays for
+                this.curLife = this.maxLife;
+                this.portrait = this.wash;
+                this.text = "Like a leaf on the wind...";
+
+                this.width = 300
+                this.height = 100;
+
+                this.color = "#FF0000";
+
+            this.portrait.src = "wash.png";
+            }
+            draw() {
+              if(this.curLife > 0)
+              {
+                context.fillStyle = this.color;
+
+                context.globalAlpha = 0.6; //map alpha to size
+                //box
+                context.fillRect(this.posX,this.posY,this.width,this.height)
+
+                //portrait
+                context.drawImage(this.portrait, this.posX + 10, this.posY + 10);
+
+                context.fillStyle = "#FFFFFF";
+                context.font = "16px Arial";
+
+                //text
+                  context.fillText(this.text,this.posX + 100, this.posY + 50);
+
+
+
+                context.globalAlpha = 1; //reset alpha
+
+                context.fillStyle = "#FFFFFF";
+              }
+            }
+
+            update() 
+            {
+            //decrement life timer 
+                this.curLife -= dt;
+
+                //if weve just come of a flashheart chat.. trigger Bob
+                if(this.curLife < 0 && this.portrait == this.flashheart)
+                {
+                  console.log("here");
+                  this.portrait = this.bob;
+                  this.text = "WOOF!";
+                  this.curLife = this.maxLife;
+                }
+            
+            }
+        }
+
+
+
+
+
+        //Enemy class
+        class Enemy {
+            constructor(context, posX, posY) {
+                this.context = context;
+                this.startX = posX;
+                this.goingLeft = true;
+                this.wiggleAmount  = 50;
+                this.velX = 0;
+                this.velY = 5 * 60;
+                this.posX = posX;
+                this.posY = posY;
+
+                this.width = 30;
+                this.height = 50;
+                this.health = 1;
+                this.shootCoolDown = .5; //dictates maximum fire rate
+                this.curShootCoolDown = 0; //current shot cool down score
+                this.flagForDelete = false;
+                this.bounceOfMapBounds = true; //wether this ai bounces of the map bounds or leaves the screen
+
+                this.isBoss = false; //is this a boss, determines wether we run clever ai
+
+                this.curImage = new Image(); //image shown to screen
+                this.forwardImage = new Image(); //image when flying forward
+
+                this.leftImage = new Image(); //left facing image
+                this.rightImage = new Image(); //right facing image
+
+                this.forwardImage.src = 'aishipforward.png'; //set the sources for the images
+                this.curImage = this.forwardImage; //set current image to forward image by default
+                this.leftImage.src = 'aishipleft.png';
+                this.rightImage.src = 'aishipright.png';
+
+                this.myType = 0;
+
+
+
+                if(this.myType == 0)
+                {
+                    this.velY  = 400;
+                    this.shootCoolDown   = .3;
+                }
+
+                if(this.myType == 2)
+                {
+                    this.velY  = 400;
+                    this.shootCoolDown   = .5;
+                }
+
+            }
+
+            draw() { //draw the enemy, again offset by width and height / 2
+                context.fillStyle = "#FF0000";
+                // context.fillRect(this.posX - (this.width / 2), this.posY - (this.height / 2), this.width, this.height);
+                context.drawImage(this.curImage, this.posX + shakex - (this.width / 2), this.posY + shakey - (this.width / 2));
+
+            }
+
+            update() {
+
+
+              if(this.isBoss == false)
+              {
+
+                //set details based on type .. this should happen in a constructor to be fair
+                if(this.myType == 0)
+                {
+                    this.velY  = 400;
+                    this.shootCoolDown   = .3;
+                }
+
+                if(this.myType == 2)
+                {
+                    this.velY  = 400;
+                    this.shootCoolDown   = .5;
+                }
+
+                    if(this.myType == 2)
+                    {
+                        if(this.posY > HEIGHT/2)
+                        {
+                        this.velY = 200;
+
+                    }
+                    }
+
+
+                    if(this.myType == 1)
+                    {
+                    if(this.goingLeft)
+                    {
+                        this.velX = -80;
+                        if(this.posX < this.startX   - this.wiggleAmount )
+                        {
+                            this.goingLeft = false;
+                        }
+                    }
+                    else
+                    {
+                            this.velX = 80;
+                              if(this.posX > this.startX   + this.wiggleAmount )
+                        {
+                            this.goingLeft = true;
+                        }
+                    }
+                    }  
+
+
+     //update position by velocity and delta time
+                this.posX += this.velX * dt;
+                this.posY = this.posY + (this.velY * dt);
+
+                    }
+                    else
+                    {
+                      //we are a boss soo lets steer ... very much the same as the player steering
+
+
+var dirX =0;
+var dirY = 0;
+                      var  nearestEnemyDist = 9999;
+                      var tX = 0;
+                      var tY = 0;
+
+                      //DODGE BULLETS
+                        for(var index = 0; index < Bullets.length; index++)
+                        {
+                            var xDist = Math.abs(this.posX - Bullets[index].posX);
+                          var yDist = Math.abs(this.posY - Bullets[index].posY);
+                          var tDist = xDist + yDist;
+                          //console.log(tDist);
+                          if(tDist< 100 && tDist < nearestEnemyDist && Bullets[index].playerOwned == true)
+                          {
+
+
+console.log("dodging");
+
+
+                           var tX = (Bullets[index].posX - this.posX)  ;
+
+                           if(tX > 0)
+                           {
+                            tX = 1;
+                           }
+                           if(tX < 0)
+                           {
+                            tX = -1;
+                           }
+
+                           var tY = (Bullets[index].posX - this.posY) ;
+                                if(tY > 0)
+                           {
+                            tY = 1;
+                           }
+                           if(tY < 0)
+                           {
+                            tY = -1;
+                           }
+                           var bulletWeight = 2;
+                           tX *= bulletWeight;
+                           tY *= bulletWeight;
+                          // console.log(tX);
+                          
+
+                            nearestEnemyDist = tDist;
+                            //console.log("close to enemy");
+                          }
+                             dirX += -tX;
+                           dirY += tY;
+
+
+
+
+
+                       
+                        }
+  var idleX = 0;
+    var idleY = 300;
+//Choose who to idle on , playe r 1 or 2, based on who is alive
+if(player1.health> 0)
+{
+  idleX = player1.x;
+}
+else
+{
+  idleX = ai.x;
+}
+if(player1.health> 0)
+{
+  idleY= player1.y - 200;
+}
+else
+{
+  idleY = ai.y - 200;
+}
+
+if(idleY < 200)
+{
+  idleY = 200;
+}
+
+  //IDLE
+                       var idleWeight = 2;
+
+                        var toIdleX = idleX - this.posX;
+                        var toIdleY = idleY - this.posY;
+console.log(toIdleY);
+                          var idleDistX = Math.abs(this.posX - idleX);
+                          var idleDistY = Math.abs(this.posY - idleY);
+
+                           if(toIdleX > 0)
+                           {
+                            toIdleX = 1;
+                           }
+                           if(toIdleX < 0)
+                           {
+                            toIdleX = -1;
+                           }
+
+                         if(toIdleY > 0)
+                           {
+                            toIdleY = 1;
+                           }
+                           if(toIdleY < 0)
+                           {
+                            toIdleY = -1;
+                           }
+if(idleDistX + idleDistY > 10)
+{
+toIdleX *= idleWeight;
+toIdleY *= idleWeight;
+console.log(toIdleY);
+dirX += toIdleX;
+dirY += -toIdleY;
+console.log("to position");
+}
+console.log(dirY);
+                           if(dirX > 0)
+                          {
+                            this.posX += 80 * dt;
+                            this.velX =1;
+
+                          }
+                            if(dirX < 0)
+                          {
+                            this.posX -= 80 * dt;
+                            this.velX =-1;
+                            
+                          }
+                            if(dirY > 0)
+                          {
+                            this.posY -= 80 * dt;
+                            console.log("movin y");
+
+                          }
+                            if(dirY < 0)
+                          {
+                            this.posY += 80 * dt;
+                                                        console.log("movin y");
+
+                            
+                          }
+
+
+                    }             
+           
+
+                //depending on velocity, set the current image
+                this.curImage = this.forwardImage;
+                if (this.velX < 0) {
+                    this.curImage = this.leftImage;
+
+                }
+                if (this.velX > 0) {
+                    this.curImage = this.rightImage;
+
+                }
+                if (this.bounceOfMapBounds) {
+                    if (this.posX > WIDTH || this.posX < 0) {
+                        this.velX *= -1;
+                        //this.flagForDelete = true;
+                        //console.log(this.flagForDelete);
+                    }
+                }
+                if (this.posY > HEIGHT) {
+                    this.flagForDelete = true; //delete if of screen
+                }
+                this.curShootCoolDown += dt; //increment shot timer
+
+
+
+
+                if (this.curShootCoolDown > this.shootCoolDown) {
+
+                    if(this.myType !=2)
+                    {
+                    Shoot(context, false, 0, 800, this.posX, this.posY); //if we can shoot, then shoot !
+                    this.curShootCoolDown = 0; //reset shot timer
+                   // console.log("enemy shot");
+                    }
+                    else
+                    {
+                        if(this.posY > HEIGHT/2)
+                        {
+                    Shoot(context, false, 0, 800, this.posX, this.posY); //DOWN
+                    Shoot(context, false, 0, -800, this.posX, this.posY); //UP
+                    Shoot(context, false, 0, 0, this.posX, this.posY); //RIGHT
+
+                    Bullets[Bullets.length -1].velX = 800;
+                     Shoot(context, false, 0, 0, this.posX, this.posY); //LEFT
+
+                    Bullets[Bullets.length -1].velX = -800;
+
+
+                    Shoot(context, false, 0, 800, this.posX, this.posY); //DOWN RIGHT
+                    Bullets[Bullets.length -1].velX = 800;
+
+
+                    Shoot(context, false, 0, -800, this.posX, this.posY); //UP RIGHT
+                    Bullets[Bullets.length -1].velX = 800;
+
+         Shoot(context, false, 0, 800, this.posX, this.posY); //DOWN LEFT
+                    Bullets[Bullets.length -1].velX = -800;
+
+
+                    Shoot(context, false, 0, -800, this.posX, this.posY); //UP LEFT
+                    Bullets[Bullets.length -1].velX = -800;
+
+
+
+                
+                    this.curShootCoolDown = 0;
+                }
+                    }
+                }
+            }
+        }
+
+        //Bullet class
+        class Bullet {
+            constructor(context, playerOwned, velX, velY, posX, posY) {
+                this.context = context;
+                this.playerOwned = playerOwned; // does a player own this or an enemy (for the purposes of hit detection later)
+                this.velX = velX;
+                this.velY = velY;
+                this.posX = posX;
+                this.posY = posY;
+                this.damage = 1; //damage set to 1 by default
+                this.width = 10;
+                this.height = 10;
+                this.flagForDelete = false;
+
+                this.owner = 0; //0 for ai, 1 for player 1, 2 for player 2, not ideal but i need to keep track of who shot the bullets now im implementing p2 score
+                this.color = "#FFFF00";
+
+                if (!playerOwned) {
+                    this.color = "#FF8C00"   //set color based on if this is player owned or not
+                }
+
+            }
+            draw() { //draw with the offset
+                context.fillStyle = this.color;
+
+                context.fillRect(this.posX + shakex - (this.width / 2), this.posY + shakey - (this.height / 2), this.width, this.height);
+
+            }
+
+            update() { //update by velocity and delta time
+                this.posX += this.velX * dt;
+                this.posY = this.posY + (this.velY * dt);
+
+                if (this.posX > WIDTH || this.posX < 0 || this.posY > HEIGHT || this.posY < 0) {
+                    this.flagForDelete = true; //if out of bounds, delete
+                }
+            }
+        }
+
+        //helper function for mapping a number from one range to another
+        const scale = (num, in_min, in_max, out_min, out_max) => {
+            return (num - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+        }
+
+        //we only need to declare 'var' once, and we can just list all out variables
+        var
+            isMultiplayer = false, //are we multiplayer
+            WIDTH = 600,
+            HEIGHT = 800, //WIDHT and HEIGHT are the size of our canvas
+            pi = Math.PI, //just lets us call pi, rather than Math.PI
+            baseMapScrollSpeed = 10,
+            //this is out keyboard presses, JS uses a table found here >>
+         
+            easyMode = 49, // 1
+            hardMode = 50, // 2
+        
+            WaveCounter = 0, //to keep track of what wave were on
+
+
+            //there are our game elements
+            canvas, //the play area
+            context, //we use context in JS to relate back to the object we use it in
+            keystate, // check the defined key press
+            lastKeystate,
+
+            myBGMusic = new sound("freebird.wav", true), //background music .. gotta love skynyrd!
+
+            menuSound = new sound("freebird.wav", true),
+            loseSound = new sound("freebird.wav", true),
+
+            lastFrame = new Date(), //for working out delta time
+
+            dt = 0, //cur delta time
+
+
+
+
+            Bullets = [], //array of active bullets
+            Enemies = [], //array of active nemies
+            Collectables = [], //array of active collectables
+            Stars = [], //array of active stars
+            Particles = [],
+
+            levelTimer = 0, //how long the level has been playing for
+            gameState = 3, // game state .. 0 for PLAY, 1 for LOSE , 2 for WIN. 3 for MENU.. enumeration would be better
+            
+
+            holdingMenuEnterButtonDown = false;
+            menuImage = new Image(); //image for menu
+            menuImage.src = "menu.png";
+
+            selectedMenuItem = 2; //currently selected menu item
+            selectedLoseMenuItem = 1; //currently selected lose menu item
+            player1 = new Player(context,1), //create player 1
+            ai = new Player(context,2), //create player 2
+
+            curBoss = new  Enemy(); //boss
+            shakex = 0; //shake vars
+            shakey = 0;
+            shakeduration = 0; //current shake duration
+            shakemag = 10; //magnitude
+
+
+            endGameTimer = 2; //end game timer .. allows the game to end over time, instead of suddenly snapping states
+            curEndGameTimer = endGameTimer; 
+            gameEnding = false; // is the game ending 
+            bossFightInProgress = false; //are we boss fighting ? dont want to keep spawing mobs if we are
+            chatterBox = new ChatterBox(context); //chatter box
+
+
+            //chatterBox.curLife = 10;
+
+        //like all 'main' functions, this starts the game
+        function Main() {
+            // create, initiate and append the game canvas we create at the start
+            // we do this because if we dont give the canvas time to load,
+            // it wont appear on the page
+            canvas = document.createElement("canvas");
+            canvas.width = WIDTH;
+            canvas.height = HEIGHT;
+            context = canvas.getContext("2d");
+            document.body.appendChild(canvas)
+
+            keystate = {};
+
+
+
+            // these listeners will keep track of keyboard presses
+            //button down will create the keycode to controll the paddle
+            document.addEventListener("keydown", function (evt) {
+                keystate[evt.keyCode] = true;
+            })
+
+            //button up can then be used to delete the keystroke
+            document.addEventListener("keyup", function (evt) {
+                delete keystate[evt.keyCode];
+            })
+
+            init(); // initiate game objects
+
+            // game loop function
+            var loop = function () {
+                update();
+                draw();
+                //this loops the "animation" of the canvas, the max is 60fps
+                window.requestAnimationFrame(loop, canvas);
+            }
+
+            //and here we begin the frame loop
+            window.requestAnimationFrame(loop, canvas);
+        }
+
+
+        //this is where we declare all the start positions of our objects
+        function init() {
+          //REESET ALL VARIABLES 
+
+bossFightInProgress = false;
+            Stars.length = 0; 
+            Bullets.length = 0;
+            Enemies.length = 0;
+            Collectables.length = 0;
+            levelTimer = 0;
+            WaveCounter = 0;
+            player1.health = player1.maxHealth;
+            player1.playerNo = 1;
+            ai.playerNo = 2;
+            Particles.length = 0;
+            dt = (new Date() - lastFrame) / 1000;
+            levelTimer += dt
+            lastFrame = new Date();
+            //  console.log(levelTimer);
+            player1.loadTextures();
+            ai.loadTextures();
+            player1.x = WIDTH / 2;
+            player1.y = (HEIGHT / 3 * 2);
+            ai.x = WIDTH / 2;
+            ai.y = (HEIGHT / 3 * 2);
+            ai.health = ai.maxHealth;
+            player1.alive = true;
+            ai.alive = true;
+shakeduration = 0;
+            ai.score = 0;
+            player1.score = 0;
+            player1.curSpecialFireTimer = 0;
+            ai.curSpecialFireTimer = 0;
+
+            //  enemy = new Enemy(context, 8,2,10,50,3,30);
+            //  Enemies.push(enemy);
+
+            // enemy2 = new Enemy(context, 8,2,100,50,3,30);
+            // Enemies.push(enemy2);
+
+
+            star = new Star(context);
+            Stars.push(star);
+
+            
+
+
+            player1.curGenerator = player1.maxGenerator;
+            player1.curShield = player1.maxShield;
+
+            ai.curGenerator = ai.maxGenerator;
+            ai.curShield = ai.maxShield;
+            curEndGameTimer = endGameTimer;
+            gameEnding = false;
+
+            chatterBox.curLife = -1;
+
+        }
+
+
+
+        //this is where we call to update all our objects
+        function update() {
+
+
+
+
+
+
+//update chatter box
+chatterBox.update();
+            //if the games ending, decrement the timer ... trigger the end game state when were < 0
+
+
+//manage fsound and game state conditions
+
+            if(gameState ==3)
+            {
+
+loseSound.stop();
+              if(myBGMusic.isPlaying == true)
+              {
+                menuSound.stop();
+                loseSound.stop();
+
+
+              }
+              if(selectedMenuItem == 2 )
+              {
+                if(keystate[83] || keystate[40])
+                {
+                  selectedMenuItem = 1;
+                }
+                else if(keystate[32] || keystate[13])
+                {
+                  init();
+                gameState = 0;
+                isMultiplayer = false;
+               // myMusic.play();
+                //myMusic.stop();
+
+                }
+                
+                
+            
+            }
+            else
+            {
+                 if(keystate[87] || keystate[38])
+                {
+                  selectedMenuItem = 2;
+                }
+                 else if(keystate[32] || keystate[13])
+                {
+                  init();
+                gameState = 0;
+                isMultiplayer = true;
+               // myMusic.play();
+
+                }
+
+            }
+            
+
+            }
+
+
+
+            if(gameEnding && gameState == 0)
+            { 
+                curEndGameTimer -= dt;
+                if(curEndGameTimer < 0)
+                {
+                  if(myBGMusic.isPlaying)
+                  {
+                    myBGMusic.stop();
+
+                    loseSound.play();
+                    menuSound.stop();
+
+                  }
+                 // myMusic.stop();
+                  chatterBox.curLife = -1;
+                    gameState =1;
+                                selectedLoseMenuItem = 2;
+
+                }
+            }
+
+
+            if(gameState == 0)
+            {
+
+
+if(myBGMusic.isPlaying == false)
+{
+  myBGMusic.play();
+  loseSound.stop();
+
+
+}
+
+        //apply shake if nessecary
+                  shakeduration -= dt;
+            if(shakeduration > 0)
+            {
+                var pt_angle = Math.random() * 2 * Math.PI;
+                var pt_radius_sq = Math.random() * shakemag * shakemag;
+               shakex = Math.sqrt(pt_radius_sq) * Math.cos(pt_angle);
+                shakey = Math.sqrt(pt_radius_sq) * Math.sin(pt_angle);
+            }
+            else
+            {
+                shakeduration = 0;
+                shakex  = 0;
+                shakey = 0 ;
+            }
+
+
+            }
+         
+
+         //Menu navigation stuff
+            if (gameState == 1 || gameState == 2) {
+             // myMusic.stop();
+
+
+       if(!keystate[32]&& !keystate[13]  && selectedLoseMenuItem == 1)
+                {
+                  if(holdingMenuEnterButtonDown == true)
+                  {
+                    init();
+                                    gameState = 3;
+
+                    holdingMenuEnterButtonDown = false;
+                      Enemies.length = 0;
+                  
+                 }
+                }
+
+
+
+      if(selectedLoseMenuItem == 2 )
+              {
+                if(keystate[83] || keystate[40])
+                {
+                  selectedLoseMenuItem = 1;
+                }
+                else if(keystate[32] || keystate[13])
+                {
+                  Enemies.length = 0;
+                  init();
+                gameState = 0;
+
+                }
+                
+                
+            
+            }
+            else
+            {
+
+
+                 if(keystate[87] || keystate[38])
+                {
+                  selectedLoseMenuItem = 2;
+                }
+                else if(keystate[32] || keystate[13])
+                {
+                  holdingMenuEnterButtonDown = true;
+              
+
+
+                }
+
+
+
+
+            }
+            
+            }
+
+//game state 0 .. the actual game
+
+            if (gameState == 0) {
+              //game ending states
+                if (isMultiplayer) {
+                    if (!player1.alive && !ai.alive) {
+                        gameEnding = true;
+                    }
+                }
+                else {
+                    if (!player1.alive) {
+                        gameEnding = true;
+                    }
+                }
+                if (levelTimer > 180) {
+                    gameState = 2; //never going to get here, but it exists
+                }
+//chance to spawn a star
+                if (Math.random() < 0.1) {
+                    star = new Star(context);
+                    Stars.push(star);
+                }
+
+//update delta time
+                dt = (new Date() - lastFrame) / 1000;
+                levelTimer += dt
+                lastFrame = new Date();
+                //ipdate players
+
+                player1.update(dt,Enemies,Bullets,Collectables);
+             
+                    ai.update(dt,Enemies,Bullets,Collectables);
+                
+
+
+
+
+                    //update particles
+
+                for (index = 0; index < Particles.length; ++index) {
+
+                    Particles[index].update();
+
+                }
+
+                Particles = Particles.filter(item => (item.flagForDelete == false));
+
+
+
+
+                  //update collectables
+                for (index = 0; index < Collectables.length; ++index) {
+
+                    Collectables[index].update();
+
+                }
+
+                Collectables = Collectables.filter(item => (item.flagForDelete == false));
+
+                for (index = 0; index < Stars.length; ++index) {
+
+                    Stars[index].update();
+
+                }
+
+                  //update stars
+                Stars = Stars.filter(item => (item.flagForDelete == false));
+
+
+//uodate bullets
+                for (index = 0; index < Bullets.length; ++index) {
+
+                    Bullets[index].update();
+                    //if a bullet is player owned, checkl for collision against enemies
+
+                    if (Bullets[index].playerOwned) {
+
+                        for (i = 0; i < Enemies.length; ++i) {
+                            if (AABBCollission(Bullets[index].posX, Bullets[index].posY, Bullets[index].width, Bullets[index].height, Enemies[i].posX, Enemies[i].posY, Enemies[i].width, Enemies[i].height)) {
+
+                                Bullets[index].flagForDelete = true; //de;ete bullet
+
+
+
+                                Enemies[i].health -= Bullets[index].damage; //hurt enemy
+                                if (Enemies[i].health <= 0) { // do we kill enemy?
+                                    Enemies[i].flagForDelete = true; //delete enemy
+                                    if(Enemies[i].isBoss == true)
+                                    {
+                                      console.log("just shot boss down");
+                                      bossFightInProgress = false; //if were a boss, rreset bossFightInProgress
+                                    }
+                                    shakeduration +=.2; //add shake and exolosion
+                                     for(var n = 0; n < 100; n++)
+                                {
+                                   var particle = new Particle(context,Enemies[i].posX,Enemies[i].posY);
+                                    Particles.push(particle);
+                                }
+                                }
+                                //sound
+                                myMusic = new sound("crash.wav");
+                                myMusic.play();
+                                //increment player score based on owner of the bullet
+
+                                if (Bullets[index].owner == 1) {
+                                    player1.score++;
+                                }
+                                else {
+                                    ai.score++;
+                                }
+                                //chance to drop a collectable
+                                var r = getRandomArbitrary(1, 100);
+                                if (r < 30) {
+
+                                    var col = new Collectable(context, Enemies[i].posX, Enemies[i].posY);
+                                    Collectables.push(col);
+                                }
+
+                            }
+                        }
+                    }
+
+
+                }
+                Bullets = Bullets.filter(item => (item.flagForDelete == false));
+
+
+
+                //update enemies
+                for (index = 0; index < Enemies.length; ++index) {
+                    //console.log(Bullets[index]);
+
+                    Enemies[index].update();
+                }
+
+
+                Enemies = Enemies.filter(item => (item.flagForDelete == false));
+
+
+                // console.log(levelTimer);
+
+
+
+//ENEMY GENERATION
+  //every 3 secs, if there isnt a boss fight
+
+                if (levelTimer > 3 && bossFightInProgress == false) {
+
+//chance of triggering ai chatter is possible
+if(chatterBox.curLife < 0)
+{
+                    var r = Math.floor(Math.random() * Math.floor(7))
+                    if(r ==1)
+                    {
+                      chatterBox.curLife = chatterBox.maxLife;
+                      chatterBox.portrait = chatterBox.wash;
+                      chatterBox.text = "Im a leaf on the wind..";
+                    }
+                       if(r ==2)
+                    {
+                      chatterBox.curLife = chatterBox.maxLife;
+                      chatterBox.portrait = chatterBox.chewy;
+                      chatterBox.text = "WUAHAHARGHGHGH..";
+                    }
+
+}
+//otherwise pick a wave type and spawn waves
+
+                    var r = Math.floor(Math.random() * Math.floor(6))
+                   
+                   console.log(r);
+                    if(r == 0)
+                    {
+                    enemy = new Enemy(context,  250, 0, 3, 30);
+                    Enemies.push(enemy);
+
+                    enemy = new Enemy(context,  300, 50, 3, 30);
+                    Enemies.push(enemy);
+
+
+                    enemy2 = new Enemy(context,  350, 0, 3, 30);
+                    Enemies.push(enemy2);
+
+
+                   enemy = new Enemy(context,  100, -100, 3, 30);
+                    Enemies.push(enemy);
+
+                    enemy = new Enemy(context,  150, -50, 3, 30);
+                    Enemies.push(enemy);
+
+
+                    enemy2 = new Enemy(context,  200, -100, 3, 30);
+                    Enemies.push(enemy2);
+
+                             enemy = new Enemy(context,  400, -100, 3, 30);
+                    Enemies.push(enemy);
+
+                    enemy = new Enemy(context,  450, -50, 3, 30);
+                    Enemies.push(enemy);
+
+
+                    enemy2 = new Enemy(context,  500, -100, 3, 30);
+                    Enemies.push(enemy2);
+
+
+                    WaveCounter++;
+                    levelTimer = 0;
+                }
+                    if(r == 1)
+                    {
+               
+                    enemy = new Enemy(context,  250, 0, 3, 30);
+                    Enemies.push(enemy);
+
+                    enemy = new Enemy(context,  300, 50, 3, 30);
+                    Enemies.push(enemy);
+
+
+                    enemy2 = new Enemy(context,  350, 0, 3, 30);
+                    Enemies.push(enemy2);
+
+
+
+                    enemy2 = new Enemy(context,  150, -100, 3, 30);
+                    enemy2.myType = 1
+                    Enemies.push(enemy2);
+
+
+
+                    enemy2 = new Enemy(context,  450, -100, 3, 30);
+                    enemy2.myType = 1;
+                    Enemies.push(enemy2);
+                    WaveCounter++;
+                    levelTimer = 0;
+                }
+                        if(r == 2)
+                    {
+               
+                    enemy = new Enemy(context,  250, 0, 3, 30);
+                    Enemies.push(enemy);
+
+                    enemy = new Enemy(context,  300, 50, 3, 30);
+                    enemy.myType = 2;
+                    Enemies.push(enemy);
+
+
+                    enemy2 = new Enemy(context,  350, 0, 3, 30);
+                    Enemies.push(enemy2);
+
+
+
+                    enemy2 = new Enemy(context,  150, -100, 3, 30);
+                    enemy2.myType = 1
+                    Enemies.push(enemy2);
+
+
+
+                    enemy2 = new Enemy(context,  450, -100, 3, 30);
+                    enemy2.myType = 1;
+                    Enemies.push(enemy2);
+                    WaveCounter++;
+                    levelTimer = 0;
+                }
+                  if(r == 4)
+                    {
+               
+                  
+                    enemy = new Enemy(context,  300, 50, 3, 30);
+                    enemy.myType = 2;
+                    Enemies.push(enemy);
+                       enemy = new Enemy(context,  100, 0, 3, 30);
+                    enemy.myType = 2;
+                    Enemies.push(enemy);
+   enemy = new Enemy(context,  500, 0, 3, 30);
+                    enemy.myType = 2;
+                    Enemies.push(enemy);
+
+
+
+                    WaveCounter++;
+                    levelTimer = 0;
+                }
+if(r==5)
+{ //BOSS FIGHT!
+                          bossFightInProgress = true;
+                       enemy = new Enemy(context,  250, 0, 3, 30);
+                                              enemy.health = 10;
+
+                       enemy.isBoss = true;
+                       curBoss = enemy;
+                     Enemies.push(enemy);
+                     levelTimer = 0;
+WaveCounter++;
+//AI CHATTER FOR FLASHEART
+                     chatterBox.portrait = chatterBox.flashheart;
+                     chatterBox.text = "Im the Top Dog! WOOF!";
+                     chatterBox.curLife = 2;
+}
+
+
+                }
+
+       
+           
+
+            }
+
+                                                  lastKeystate = keystate;
+
+
+        }
+
+
+        //in this draw function, we clear the canvas and load all the required elements
+        //then we draw the objects on the canvas
+        function draw() {
+
+
+          
+
+
+            context.fillRect(0, 0, WIDTH, HEIGHT);
+            context.save();
+
+
+            if(gameState ==3)
+            {
+              //main menu
+              context.drawImage(menuImage,0,0);
+
+                context.fillStyle = "#FFFFFF";
+                context.font = "48px Arial";
+
+              context.fillText("Vertical SHMUP", 150,200);
+                              context.font = "32px Arial";
+
+              context.fillText("Joel Whittle",225,300);
+
+                context.font = "32px Arial";
+
+
+//draw menu items based on whats selected
+if(selectedMenuItem != 1)
+{
+                  context.fillStyle = "#FF9900";
+                              context.font = "40px Arial";
+
+      context.fillText("Single Player",200,500);
+                              context.font = "32px Arial";
+                                              context.fillStyle = "#FFFFFF";
+
+
+              context.fillText("Multi Player",225,600);
+
+                context.font = "16px Arial";
+}
+else
+{
+                                              context.fillStyle = "#FFFFFF";
+
+                              context.font = "32px Arial";
+
+              context.fillText("Single Player",210,500);
+                              context.font = "40px Arial";
+                                                context.fillStyle = "#FF9900";
+
+
+              context.fillText("Multi Player",200,600);
+                                                            context.fillStyle = "#FFFFFF";
+
+
+                context.font = "16px Arial";
+              }
+
+            }
+
+            if (gameState == 0) {
+                // Here we draw the canvas
+                //https://www.w3schools.com/tags/canvas_fillrect.asp
+
+
+
+
+//draw stars
+
+                for (index = 0; index < Stars.length; ++index) {
+                    //console.log(Bullets[index]);
+
+                    Stars[index].draw();
+                }
+
+
+//draw particles
+     for (index = 0; index < Particles.length; ++index) {
+
+                    Particles[index].draw();
+                }
+
+
+//draw players
+
+                player1.draw();
+
+                    ai.draw();
+            
+            //draw bullets
+
+                for (index = 0; index < Bullets.length; ++index) {
+                    //console.log(Bullets[index]);
+
+                    Bullets[index].draw();
+                }
+
+//draw colelctables
+
+                for (index = 0; index < Collectables.length; ++index) {
+                    //console.log(Bullets[index]);
+
+                    Collectables[index].draw();
+                }
+
+
+                for (index = 0; index < Enemies.length; ++index) {
+                    //console.log(Bullets[index]);
+
+                    Enemies[index].draw();
+                }
+
+                //gui
+
+
+
+                context.fillStyle = "#42f4d7"; //colour of objects and things
+
+                //text for the scoring
+                //https://www.w3schools.com/tags/canvas_filltext.asp
+                context.font = "20px Arial"; //size and font
+
+                //Player one's score
+                context.fillText("P1 Score: ", 10, 25);
+                context.fillText(player1.score, 100, 25); //score variable
+
+
+              
+                    //player two's score
+                    context.fillText("P2 Score: ", 400, 25);
+                    context.fillText(ai.score, 490, 25); //score variable
+
+           
+
+                //p1 health
+                context.fillStyle = "#FF0000";
+
+
+                context.fillRect(110, HEIGHT - 20, 15, - player1.health * 10);
+
+
+
+
+                //p1 shield
+
+                context.fillStyle = "#0000FF";
+
+
+                context.fillRect(80, HEIGHT - 20, 15, - player1.curShield * 10);
+
+                //p1 power generator
+
+
+                context.fillStyle = "#FF0000";
+                if (player1.curGenerator > player1.maxGenerator / 100 * 30) {
+                    context.fillStyle = "#FF9900";
+
+                }
+                if (player1.curGenerator > player1.maxGenerator / 100 * 50) {
+                    context.fillStyle = "#FFFF00";
+
+                }
+                if (player1.curGenerator > player1.maxGenerator / 100 * 80) {
+                    context.fillStyle = "#00FF00";
+
+                }
+
+                context.fillRect(50, HEIGHT - 20, 15, - player1.curGenerator * 10);
+                context.fillStyle = "#FFFFFF";
+
+
+            
+                    //p2 health
+                    context.fillStyle = "#FF0000";
+
+
+                    context.fillRect(480, HEIGHT - 20, 15, - ai.health * 10);
+
+                    //p2 shield
+
+                    context.fillStyle = "#0000FF";
+
+
+                    context.fillRect(510, HEIGHT - 20, 15, - ai.curShield * 10);
+
+                    //p2 power generator
+
+
+                    context.fillStyle = "#FF0000";
+                    if (ai.curGenerator > ai.maxGenerator / 100 * 30) {
+                        context.fillStyle = "#FF9900";
+
+                    }
+                    if (ai.curGenerator > ai.maxGenerator / 100 * 50) {
+                        context.fillStyle = "#FFFF00";
+
+                    }
+                    if (ai.curGenerator > ai.maxGenerator / 100 * 80) {
+                        context.fillStyle = "#00FF00";
+
+                    }
+
+                    context.fillRect(540, HEIGHT - 20, 15, - ai.curGenerator * 10);
+                    context.fillStyle = "#FFFFFF";
+
+                chatterBox.draw();
+
+
+                // boss health
+                if(bossFightInProgress)
+                {
+
+                  context.fillStyle = "#FF0000";
+                context.globalAlpha = 0.6; 
+
+                  var barWidth = curBoss.health * 10;
+                context.fillRect((WIDTH / 2) - barWidth / 2, 10, barWidth, 20);
+
+                context.drawImage(chatterBox.flashheart,(WIDTH / 2) - (barWidth / 2) - 90, 10)
+                                context.globalAlpha = 1; //map alpha to size
+
+              }
+
+            }
+
+
+            if (gameState == 1) {
+             context.drawImage(menuImage,0,0);
+
+                context.fillStyle = "#FFFFFF";
+                context.font = "48px Arial";
+
+              context.fillText("GAME OVER", 150,200);
+                              context.font = "32px Arial";
+
+
+                context.font = "32px Arial";
+
+
+if(selectedLoseMenuItem != 1)
+{
+                  context.fillStyle = "#FF9900";
+                              context.font = "40px Arial";
+
+      context.fillText("Retry",250,500);
+                              context.font = "32px Arial";
+                                              context.fillStyle = "#FFFFFF";
+
+
+              context.fillText("Back to Menu",225,600);
+
+                context.font = "16px Arial";
+}
+else
+{
+                                              context.fillStyle = "#FFFFFF";
+
+                              context.font = "32px Arial";
+
+              context.fillText("Retry",260,500);
+                              context.font = "40px Arial";
+                                                context.fillStyle = "#FF9900";
+
+
+              context.fillText("Back to Menu",200,600);
+                                                            context.fillStyle = "#FFFFFF";
+
+
+                context.font = "16px Arial";
+              }
+
+            }
+
+            if (gameState == 2) {
+                context.fillStyle = "#FFFFFF"; //colour of objects and things
+
+                context.fillText("YOU WIN - SPACE TO RETRY ", WIDTH / 2, HEIGHT / 2);
+            }
+
+
+
+
+
+
+
+            context.restore();
+        }
+
+
+
+        function Shoot(context, playerOwned, velX, velY, posX, posY) {
+            b = new Bullet(context, playerOwned, velX, velY, posX, posY);
+            Bullets.push(b);
+            //  console.log(Bullets.length);
+            myMusic = new sound("laser1.wav", false);
+            myMusic.play();
+        };
+
+        function AABBCollission(ax, ay, aw, ah, bx, by, bw, bh) {
+            ax -= (aw / 2);
+            ay -= (ah / 2);
+            bx -= (bw / 2);
+            by -= (bh / 2);
+            return ax < bx + bw && ay < by + bh && bx < ax + aw && by < ay + ah;
+        };
+
+
+
+        function sound(src, loops) { //taken from w3 schools
+            this.sound = document.createElement("audio");
+            this.sound.src = src;
+            this.sound.setAttribute("preload", "auto");
+            this.sound.setAttribute("controls", "none");
+            this.sound.style.display = "none";
+            this.isPlaying = false;
+            this.sound.loop = loops;
+            document.body.appendChild(this.sound);
+
+            this.play = function () {
+                this.sound.play();
+                this.isPlaying = true;
+            }
+            this.stop = function () {
+                this.sound.pause();
+                                                                            console.log("pass through");
+
+                this.isPlaying = false;
+            }
+        };
+
+
+
+        function getRandomArbitrary(min, max) {
+            return Math.random() * (max - min) + min;
+        };
+
+
+        // start and run the game
+        Main();
+
+    </script>
+</body>
+</html>
